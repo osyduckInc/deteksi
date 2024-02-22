@@ -1,36 +1,46 @@
 from picamera import PiCamera
-import time
 import cv2
 
 # Inisiasi kamera
-camera = PiCamera() 
+camera = PiCamera()
+
 # Set resolusi kamera 
 camera.resolution = (640, 480)
+
 # Set framerate kamera
 camera.framerate = 32
-# Membuka preview kamera 
-camera.start_preview()
-time.sleep(2)
-# Ambil foto dan simpan
-camera.capture('/home/pi/image.jpg') 
 
-# Loop untuk stream video
+# Membuka preview kamera
+camera.start_preview() 
+
+# Inisiasi haar cascade untuk deteksi wajah
+face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+
+# Loop untuk membaca frame secara realtime
 while True:
 
-  # Ambil frame gambar dari kamera
-  camera.capture('/home/pi/frame.jpg')  
+  # Ambil frame dari kamera
+  camera.capture(rawCapture, format="bgr")
+  image = rawCapture.array
 
-  # Baca frame gambar
-  image = cv2.imread('/home/pi/frame.jpg') 
+  # Ubah ke grayscale
+  gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+  
+  # Deteksi wajah
+  faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-  # Lakukan proses OpenCV pada frame di sini
+  # Gambar kotak pada wajah
+  for (x,y,w,h) in faces:
+    cv2.rectangle(image,(x,y),(x+w,y+h),(255,0,0),2) 
 
-  # Tampilkan gambar
+  # Tampilkan hasil    
   cv2.imshow('frame', image)
 
-  # Deteksi tombol ESC untuk berhenti
-  if cv2.waitKey(1) == 27:
+  # Jeda 10ms sebelum ambil frame berikutnya
+  key = cv2.waitKey(10)
+  if key == 27:
     break
 
-# Hentikan preview kamera  
+# Membersihkan dan stop kamera
+cv2.destroyAllWindows()
 camera.stop_preview()
