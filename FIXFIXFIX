@@ -1,0 +1,121 @@
+import cv2
+from cvzone.FaceDetectionModule import FaceDetector
+import pyfirmata
+import numpy as np
+import time
+
+# Initialize camera first
+cap = cv2.VideoCapture(1)
+ws, hs = 1920, 720
+cap.set(3, ws)
+cap.set(4, hs)
+
+if not cap.isOpened():
+    print("Camera couldn't Access!!!")
+    # Try different camera indices
+    for i in range(5):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            print(f"Camera found at index {i}")
+            break
+    else:
+        print("No camera found!")
+        exit()
+
+# Test camera capture
+ret, test_frame = cap.read()
+if not ret or test_frame is None:
+    print("Cannot read from camera!")
+    exit()
+else:
+    print(f"Camera working! Frame shape: {test_frame.shape}")
+
+# Initialize Arduino with error handling
+try:
+    port = "COM12"
+    board = pyfirmata.Arduino(port)
+    print("Arduino connected successfully!")
+    time.sleep(2)  # Give Arduino time to initialize
+    
+    servo_pinX = board.get_pin('d:9:s') #pin 9 Arduino
+    servo_pinY = board.get_pin('d:10:s') #pin 10 Arduino
+    led_pin = board.get_pin('d:5:o') # Pin 5 Arduino
+    
+    # Test LED
+    led_pin.write(1)
+    time.sleep(0.5)
+    led_pin.write(0)
+    
+except Exception as e:
+    print(f"Arduino connection failed: {e}")
+    exit()
+
+detector = FaceDetector()
+servoPos = [90, 90] # initial servo position
+
+# Initialize servo to center position
+try:
+    servo_pinX.write(servoPos[0])
+    servo_pinY.write(servoPos[1])
+    time.sleep(1)
+    print("Servos initialized to center position")
+except Exception as e:
+    print(f"Servo initialization error: {e}")
+
+print("Face tracking started...")
+print("Press 'q' to quit")
+
+frame_count = 0
+error_count = 0
+
+while True:
+    try:
+        success, img = cap.read()
+        
+        # Check if frame is valid
+        if not success or img is None:
+            print("Failed to capture frame")
+            error_count += 1
+            if error_count > 10:
+                print("Too many capture errors, exiting...")
+                break
+            continue
+        
+        # Reset error count on successful capture
+        error_count = 0
+        frame_count += 1
+        
+        # Check frame properties
+        if len(img.shape) != 3:
+            print(f"Invalid frame shape: {img.shape}")
+            continue
+            
+        # Flip image
+        img = cv2.flip(img, 1)
+        
+        # Face detection with error handling
+        try:
+            img, bboxs = detector.findFaces(img, draw=False)
+        except Exception as e:
+            print(f"Face detection error: {e}")
+            # Continue with original image if face detection fails
+            bboxs = []
+
+        if bboxs:
+            try:
+                # Face detected - LED on
+                led_pin.write(1)
+                
+                # Get the coordinate
+                fx, fy = bboxs[0]["center"][0], bboxs[0]["center"][1]
+                pos = [fx, fy]
+
+                servoX = np.interp(fx, [0, ws], [0, 180])  # Normal mapping for flipped image
+                servoY = np.interp(fy, [0, hs], [180, 0])
+
+                # Update servo positions only when face is detected
+                servoPos[0] = servoX
+                servoPos[1] = servoY
+                
+                # Visual feedback
+                cv2.circle(img, (fx, fy), 80, (0, 0, 255), 2)
