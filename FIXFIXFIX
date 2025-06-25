@@ -119,3 +119,94 @@ while True:
                 
                 # Visual feedback
                 cv2.circle(img, (fx, fy), 80, (0, 0, 255), 2)
+                cv2.putText(img, str(pos), (fx+15, fy-15), cv2.FONT_HERSHEY_PLAIN, 2, (255, 0, 0), 2)
+                cv2.line(img, (0, fy), (ws, fy), (0, 0, 0), 2)  # x line
+                cv2.line(img, (fx, hs), (fx, 0), (0, 0, 0), 2)  # y line
+                cv2.circle(img, (fx, fy), 15, (0, 0, 255), cv2.FILLED)
+                cv2.putText(img, "TARGET LOCKED", (850, 50), cv2.FONT_HERSHEY_PLAIN, 3, (255, 0, 255), 3)
+                
+            except Exception as e:
+                print(f"Face processing error: {e}")
+                led_pin.write(0)
+
+        else:
+            try:
+                # No face detected - LED off, servo stays in last position
+                led_pin.write(0)
+                
+                # Visual feedback - show waiting state
+                cv2.putText(img, "WAITING...", (850, 50), cv2.FONT_HERSHEY_PLAIN, 3, (0, 255, 0), 3)
+                cv2.circle(img, (ws//2, hs//2), 80, (0, 255, 0), 2)
+                cv2.circle(img, (ws//2, hs//2), 15, (0, 255, 0), cv2.FILLED)
+                cv2.line(img, (0, hs//2), (ws, hs//2), (0, 0, 0), 2)  # x line
+                cv2.line(img, (ws//2, hs), (ws//2, 0), (0, 0, 0), 2)  # y line
+                
+            except Exception as e:
+                print(f"No face display error: {e}")
+
+        # Servo control with individual error handling
+        try:
+            servo_pinX.write(servoPos[0])
+        except Exception as e:
+            print(f"Servo X error: {e}")
+            
+        try:
+            servo_pinY.write(servoPos[1])
+        except Exception as e:
+            print(f"Servo Y error: {e}")
+
+        # Display image with error handling
+        try:
+            cv2.imshow("Face Tracking", img)
+        except Exception as e:
+            print(f"Display error: {e}")
+            break
+            
+        # Check for quit key
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            print("Quit key pressed")
+            break
+            
+        # Debug info every 100 frames
+        if frame_count % 100 == 0:
+            print(f"Processed {frame_count} frames, Servo pos: X={servoPos[0]:.1f}, Y={servoPos[1]:.1f}")
+            
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received")
+        break
+    except Exception as e:
+        print(f"Main loop error: {e}")
+        error_count += 1
+        if error_count > 5:
+            print("Too many errors, exiting...")
+            break
+
+print("Cleaning up...")
+
+# Cleanup with error handling
+try:
+    # Center servos before exit
+    servo_pinX.write(90)
+    servo_pinY.write(90)
+    led_pin.write(0)
+    time.sleep(0.5)
+except:
+    pass
+
+try:
+    cap.release()
+except:
+    pass
+
+try:
+    cv2.destroyAllWindows()
+except:
+    pass
+
+try:
+    board.exit()
+except:
+    pass
+
+print("Cleanup completed")
